@@ -1,0 +1,2 @@
+cd ../..
+php cli.php mail:multi:send --from="test@example.com" --fromname="aoop" --data="modules/mailcli/deploy/testdata/mails.json" --subject="file:modules/mailcli/deploy/testdata/subject.twig" --body="file:modules/mailcli/deploy/testdata/body.twig"

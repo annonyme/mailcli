@@ -17,4 +17,4 @@ php cli.php mail:multi:send --from="test@example.com" --fromname="aoop" --data="
 
 ## WIP
 
-Customer fullname next to the email-address. CSV-Support.
+Customer fullname next to the email-address.

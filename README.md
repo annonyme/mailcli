@@ -15,6 +15,11 @@ php cli.php mail:multi:send --from="test@example.com" --fromname="aoop" --data="
 php cli.php mail:multi:send --from="test@example.com" --fromname="aoop" --data="modules/mailcli/deploy/testdata/mails.csv" --subject="file:modules/mailcli/deploy/testdata/subject.twig" --body="file:modules/mailcli/deploy/testdata/body.twig"
 ```
 
+### YAML
+```
+php cli.php mail:multi:send --from="test@example.com" --fromname="aoop" --data="modules/mailcli/deploy/testdata/mails.yml" --subject="file:modules/mailcli/deploy/testdata/subject.twig" --body="file:modules/mailcli/deploy/testdata/body.twig"
+```
+
 ## WIP
 
 Customer fullname next to the email-address.

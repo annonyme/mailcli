@@ -1,0 +1,13 @@
+items:
+  - :
+    mail: "a@example.com"
+    name: "Customer No1"
+    voucher: "11111"
+  - :
+    mail: "b@example.com"
+    name: "Customer No2"
+    voucher: "11112"
+  - :
+    mail: "c@example.com"
+    name: "Customer No3"
+    voucher: "11113"

@@ -22,7 +22,7 @@ class SendCommand extends Command
 
         $this->addOption('from', null, InputOption::VALUE_REQUIRED, 'from email-adress');
         $this->addOption('fromname', null, InputOption::VALUE_OPTIONAL, 'from email-adress name');
-        $this->addOption('data', null, InputOption::VALUE_REQUIRED, 'email-adresses and data as CSV(;-separated) or JSON-objects in array. "mail" has to contain the email-adress you want to send the message to (use a object like "mail: "{"a@example.de": "Firstname Lastname"} to add the fullname).');
+        $this->addOption('data', null, InputOption::VALUE_REQUIRED, 'email-adresses and data as CSV(;-separated), YAML-items or JSON-objects in array. "mail" has to contain the email-adress you want to send the message to (use a object like "mail: "{"a@example.de": "Firstname Lastname"} to add the fullname).');
         $this->addOption('subject', null, InputOption::VALUE_REQUIRED, 'subject as string, twig: or column:');
         $this->addOption('body', null, InputOption::VALUE_REQUIRED, 'subject as string, file: or column:');
         $this->addOption('ishtml', null, InputOption::VALUE_OPTIONAL, 'yes/no. default is no');
@@ -56,6 +56,12 @@ class SendCommand extends Command
         return $data;
     }
 
+    private function readYAML(string $filePath): array
+    {
+        $data = yaml_parse_file($filePath);
+        return $data[array_keys($data)[0]];
+    }
+
     /**
      * @param InputInterface $input
      * @param OutputInterface $output
@@ -68,6 +74,8 @@ class SendCommand extends Command
         $data = [];
         if (preg_match("/\.csv$/i", $dataFilepath)) {
             $data = $this->readCSV($dataFilepath);
+        } else if (preg_match("/\.y(a)?ml$/i", $dataFilepath) && function_exists('yaml_parse_file')) {
+            $data = $this->readYAML($dataFilepath);
         } else {
             $data = json_decode(file_get_contents($dataFilepath), true);
         }

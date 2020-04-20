@@ -92,8 +92,8 @@ class SendCommand extends Command
         }
 
         $fromName = $input->hasOption('fromname') ? $input->getOption('fromname') : null;
-        $rangeFrom = $input->hasOption('rangefrom') ? $input->getOption('rangefrom') : 0;
-        $rangeTo = $input->hasOption('rangeto') ? $input->getOption('rangeto') : PHP_INT_MAX;
+        $rangeFrom = $input->hasOption('rangefrom') ? (int) $input->getOption('rangefrom') : 0;
+        $rangeTo = $input->hasOption('rangeto') ? (int) $input->getOption('rangeto') : PHP_INT_MAX;
 
         $subject = $input->getOption('subject');
         if (!$subject || strlen($subject) === 0) {

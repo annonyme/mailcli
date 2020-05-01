@@ -26,6 +26,7 @@ class SendCommand extends Command
         $this->addOption('subject', null, InputOption::VALUE_REQUIRED, 'subject as string, twig: or column:');
         $this->addOption('body', null, InputOption::VALUE_REQUIRED, 'subject as string, file: or column:');
         $this->addOption('ishtml', null, InputOption::VALUE_OPTIONAL, 'yes/no. default is no');
+        $this->addOption('bcc', null, InputOption::VALUE_OPTIONAL, 'bcc as ,-separated list, if you want more than one');
 
         $this->addOption('rangefrom', null, InputOption::VALUE_OPTIONAL, 'start-index of working-batch');
         $this->addOption('rangeto', null, InputOption::VALUE_OPTIONAL, 'end-index of working-batch');
@@ -106,6 +107,7 @@ class SendCommand extends Command
         }
 
         $isHtml = $input->hasOption('isHtml') && $input->getOption('isHtml') != 'yes';
+        $bcc = $input->hasOption('bcc') ? explode(',', $input->getOption('bcc')) : null;
 
         $options = EventListenerFactory::getInstance()->fireFilterEvent('multimail_data_readed', [
             'data' => $data,
@@ -116,6 +118,7 @@ class SendCommand extends Command
             'isHtml' => $isHtml,
             'rangeFrom' => $rangeFrom,
             'rangeTo' => $rangeTo,
+            'bcc' => $bcc,
         ]);
 
         foreach ($options['data'] as $index => $item) {
@@ -149,7 +152,7 @@ class SendCommand extends Command
                     $outputBody = EventListenerFactory::getInstance()->fireFilterEvent('multimail_rendered_body', $outputBody, ['mail' => $item, 'renderer' => $twig, 'template' => $bodyTemplate]);
 
                     $mailer = SMTPMailerFactory::instance()->createMailer();
-                    $mailer->send($options['from'], $options['fromName'], [$item['mail']], $outputSubject, $outputBody, $options['isHtml']);
+                    $mailer->send($options['from'], $options['fromName'], [$item['mail']], $outputSubject, $outputBody, $options['isHtml'], null, $bcc);
 
                     EventListenerFactory::getInstance()->fireFilterEvent('multimail_post_send', null, [
                         'subject' => $outputSubject,
@@ -157,6 +160,7 @@ class SendCommand extends Command
                         'mail' => $item,
                         'options' => $options,
                         'to' => $item['mail'],
+                        'bcc' => $bcc,
                     ]);
 
                     $output->writeln($item['mail'] . ': ok');

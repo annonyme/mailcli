@@ -4,8 +4,10 @@ namespace mailcli;
 
 use core\events\EventListenerFactory;
 use core\mail\SMTPMailerFactory;
+use core\mail\v2\MailerFactory;
 use core\twig\TwigFunctions;
 use Exception;
+use Swift_Message;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -74,7 +76,6 @@ class SendCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $dataFilepath = $input->getOption('data');
-        $data = [];
         if (preg_match("/\.csv$/i", $dataFilepath)) {
             $data = $this->readCSV($dataFilepath);
         } else if (preg_match("/\.y(a)?ml$/i", $dataFilepath) && function_exists('yaml_parse_file')) {
@@ -83,7 +84,7 @@ class SendCommand extends Command
             $data = json_decode(file_get_contents($dataFilepath), true);
         }
 
-        if (count($data) < 1) {
+        if (!is_array($data) || count($data) < 1) {
             throw new Exception('no data or invalid data-format! (' . $input->getOption('data') . ')');
         }
         $from = $input->getOption('from');
@@ -148,8 +149,41 @@ class SendCommand extends Command
                     $outputBody = $twig->render('body', $item);
                     $outputBody = EventListenerFactory::getInstance()->fireFilterEvent('multimail_rendered_body', $outputBody, ['mail' => $item, 'renderer' => $twig, 'template' => $bodyTemplate]);
 
-                    $mailer = SMTPMailerFactory::instance()->createMailer();
-                    $mailer->send($options['from'], $options['fromName'], [$item['mail']], $outputSubject, $outputBody, $options['isHtml']);
+                    if (class_exists('core\mail\v2\MailerFactory')) {
+                        $attachments = [];
+                        foreach ($item as $key => $value) {
+                            if(preg_match("/^file:/", $value) && file_exists($value)) {
+                                $attachments[] = $value;
+                            }
+                            else if(isset($item['_' . $key . '_type']) && $item['_' . $key . '_type'] == 'attachment' && file_exists($value)) {
+                                $attachments[] = $value;
+                            }
+                            else if(isset($value['_type']) && isset($value['uri']) && $value['_type'] == 'attachment' && file_exists($value['uri'])) {
+                                $attachments[] = $value['uri'];
+                            }
+                        }
+
+                        $mailer = MailerFactory::getMailer();
+                        $mail = new Swift_Message($outputSubject);
+
+                        if ($options['fromName']) {
+                            $mail->setFrom([$from => $options['fromName']]);
+                        } else {
+                            $mail->setFrom($from);
+                        }
+
+                        $mail->setTo($item['mail']);
+                        if (isset($options['bcc'])) {
+                            $mail->setBcc($options['bcc']);
+                        }
+                        $mail->setBody($outputBody);
+                        $mailer->send($mail);
+                    } else {
+                        //fallback to old mailer
+                        $mailer = SMTPMailerFactory::instance()->createMailer();
+                        $mailer->send($options['from'], $options['fromName'], [$item['mail']], $outputSubject,
+                            $outputBody, $options['isHtml']);
+                    }
 
                     EventListenerFactory::getInstance()->fireFilterEvent('multimail_post_send', null, [
                         'subject' => $outputSubject,
@@ -164,7 +198,7 @@ class SendCommand extends Command
                     $output->writeln($item['mail'] . ': not processed');
                 }
             } catch (Exception $e) {
-                $output->writeln($item['mail'] . ': failed (' . $e->getMessage() . ')');
+                $output->writeln(($item['mail'] ?? 'item ' . $index) . ': failed (' . $e->getMessage() . ')');
             }
         }
     }

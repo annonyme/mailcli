@@ -23,9 +23,9 @@ class SendCommand extends Command
         $this->setName('mail:multi:send');
         $this->setDescription('send multiple mails, with twig-template support');
 
-        $this->addOption('from', null, InputOption::VALUE_REQUIRED, 'from email-adress');
-        $this->addOption('fromname', null, InputOption::VALUE_OPTIONAL, 'from email-adress name');
-        $this->addOption('data', null, InputOption::VALUE_REQUIRED, 'email-adresses and data as CSV(;-separated), YAML-items or JSON-objects in array. "mail" has to contain the email-adress you want to send the message to (use a object like "mail: "{"a@example.de": "Firstname Lastname"} to add the fullname).');
+        $this->addOption('from', null, InputOption::VALUE_REQUIRED, 'from email-address');
+        $this->addOption('fromname', null, InputOption::VALUE_OPTIONAL, 'from email-address name');
+        $this->addOption('data', null, InputOption::VALUE_REQUIRED, 'email-addresses and data as CSV(;-separated), YAML-items or JSON-objects in array. "mail" has to contain the email-address you want to send the message to.');
         $this->addOption('subject', null, InputOption::VALUE_REQUIRED, 'subject as string, twig: or column:');
         $this->addOption('body', null, InputOption::VALUE_REQUIRED, 'subject as string, file: or column:');
         $this->addOption('ishtml', null, InputOption::VALUE_OPTIONAL, 'yes/no. default is no');
@@ -90,7 +90,7 @@ class SendCommand extends Command
         }
         $from = $input->getOption('from');
         if (!filter_var($from, FILTER_VALIDATE_EMAIL)) {
-            throw new Exception('invalid from email-adress');
+            throw new Exception('invalid from email-address');
         }
 
         $fromName = $input->hasOption('fromname') ? $input->getOption('fromname') : null;
@@ -124,7 +124,10 @@ class SendCommand extends Command
             try {
                 if ($index >= $rangeFrom && $index <= $rangeTo) {
                     if (!isset($item['mail'])) {
-                        throw new Exception('no mail-adress found in data');
+                        throw new Exception('no mail-address found in data');
+                    }
+                    if (!filter_var($item['mail'], FILTER_VALIDATE_EMAIL)) {
+                        throw new Exception('invalid to email-address: ' . $item['mail']);
                     }
 
                     $bodyTemplate = $options['body'];
@@ -174,7 +177,7 @@ class SendCommand extends Command
                         }
 
                         $mail->setTo($item['mail']);
-                        if (isset($options['bcc'])) {
+                        if (isset($options['bcc']) && strlen(trim($options['bcc'])) > 0) {
                             $mail->setBcc($options['bcc']);
                         }
                         $mail->setBody($outputBody);

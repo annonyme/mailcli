@@ -181,7 +181,6 @@ class SendCommand extends Command
 
                         foreach ($attachments as $attachment) {
                             $mail->attach(Swift_Attachment::fromPath(realpath($attachment)));
-                            var_dump('add');
                         }
 
                         $mailer->send($mail);

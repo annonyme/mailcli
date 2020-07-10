@@ -7,6 +7,7 @@ use core\mail\SMTPMailerFactory;
 use core\mail\v2\MailerFactory;
 use core\twig\TwigFunctions;
 use Exception;
+use Swift_Attachment;
 use Swift_Message;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -93,8 +94,8 @@ class SendCommand extends Command
         }
 
         $fromName = $input->hasOption('fromname') ? $input->getOption('fromname') : null;
-        $rangeFrom = $input->hasOption('rangefrom') ? (int) $input->getOption('rangefrom') : 0;
-        $rangeTo = $input->hasOption('rangeto') ? (int) $input->getOption('rangeto') : PHP_INT_MAX;
+        $rangeFrom = $input->hasOption('rangefrom') && $input->getOption('rangefrom') > 0 ? (int) $input->getOption('rangefrom') : 0;
+        $rangeTo = $input->hasOption('rangeto') && $input->getOption('rangeto') > 0 ? (int) $input->getOption('rangeto') : count($data);
 
         $subject = $input->getOption('subject');
         if (!$subject || strlen($subject) === 0) {
@@ -177,6 +178,12 @@ class SendCommand extends Command
                             $mail->setBcc($options['bcc']);
                         }
                         $mail->setBody($outputBody);
+
+                        foreach ($attachments as $attachment) {
+                            $mail->attach(Swift_Attachment::fromPath(realpath($attachment)));
+                            var_dump('add');
+                        }
+
                         $mailer->send($mail);
                     } else {
                         //fallback to old mailer

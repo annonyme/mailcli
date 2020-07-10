@@ -3,6 +3,28 @@
 Send email to multiple customers at once. Put your data in a Json-file ("mail" column hs to contain the customers email-address) and use Twig-Templates
 for subject and mail-body (set as string, file-path or column reference).
 
+## Using attachments
+You can define attachments in the data:
+
+### CSV
+```
+mail;name;voucher;attachment;_attachment_type
+a@example.com;Customer No1;11111;modules/mailcli/deploy/testdata/dummy.txt;attachment
+```
+
+### JSON
+```
+{
+    "mail": "b@example.com",
+    "name": "Customer No2",
+    "voucher": "11112",
+    "file": {
+        "_type": "attachment",
+        "uri": ";modules/mailcli/deploy/testdata/dummy.txt"
+    }
+}
+```
+
 ## Examples
 
 ### JSON

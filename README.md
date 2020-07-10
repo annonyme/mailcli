@@ -20,6 +20,24 @@ php cli.php mail:multi:send --from="test@example.com" --fromname="aoop" --data="
 php cli.php mail:multi:send --from="test@example.com" --fromname="aoop" --data="modules/mailcli/deploy/testdata/mails.yml" --subject="file:modules/mailcli/deploy/testdata/subject.twig" --body="file:modules/mailcli/deploy/testdata/body.twig"
 ```
 
-## WIP
+### with range (from ...zero-indexed: 1+2)
+```
+php cli.php mail:multi:send --rangefrom=1 --from="test@example.com" --fromname="aoop" --data="modules/mailcli/deploy/testdata/mails.json" --subject="file:modules/mailcli/deploy/testdata/subject.twig" --body="file:modules/mailcli/deploy/testdata/body.twig"
+```
 
-Customer fullname next to the email-address.
+### with range (to ...zero-indexed: 0+1)
+```
+php cli.php mail:multi:send --rangeto=1 --from="test@example.com" --fromname="aoop" --data="modules/mailcli/deploy/testdata/mails.json" --subject="file:modules/mailcli/deploy/testdata/subject.twig" --body="file:modules/mailcli/deploy/testdata/body.twig"
+```
+
+### with range (from, to ...zero-indexed: 0+1+2)
+```
+php cli.php mail:multi:send --rangefrom=0 --rangeto=2 --from="test@example.com" --fromname="aoop" --data="modules/mailcli/deploy/testdata/mails.json" --subject="file:modules/mailcli/deploy/testdata/subject.twig" --body="file:modules/mailcli/deploy/testdata/body.twig"
+```
+
+## WIP:
+
+* Customer fullname next to the email-address
+* break on first error (as flag)
+* transaction-file: write all success-indexes value to a file, on the next run skip this indexes
+* SQL-file (the file should include the connection data, using pdbc)

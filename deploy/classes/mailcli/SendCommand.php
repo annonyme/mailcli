@@ -26,6 +26,9 @@ class SendCommand extends Command
         $this->addOption('subject', null, InputOption::VALUE_REQUIRED, 'subject as string, twig: or column:');
         $this->addOption('body', null, InputOption::VALUE_REQUIRED, 'subject as string, file: or column:');
         $this->addOption('ishtml', null, InputOption::VALUE_OPTIONAL, 'yes/no. default is no');
+
+        $this->addOption('rangefrom', null, InputOption::VALUE_OPTIONAL, 'start-index of working-batch');
+        $this->addOption('rangeto', null, InputOption::VALUE_OPTIONAL, 'end-index of working-batch');
     }
 
     private function readCSV(string $filepath): array
@@ -89,6 +92,8 @@ class SendCommand extends Command
         }
 
         $fromName = $input->hasOption('fromname') ? $input->getOption('fromname') : null;
+        $rangeFrom = $input->hasOption('rangefrom') ? (int) $input->getOption('rangefrom') : 0;
+        $rangeTo = $input->hasOption('rangeto') ? (int) $input->getOption('rangeto') : PHP_INT_MAX;
 
         $subject = $input->getOption('subject');
         if (!$subject || strlen($subject) === 0) {
@@ -109,49 +114,55 @@ class SendCommand extends Command
             'subject' => $subject,
             'body' => $body,
             'isHtml' => $isHtml,
+            'rangeFrom' => $rangeFrom,
+            'rangeTo' => $rangeTo,
         ]);
 
-        foreach ($options['data'] as $item) {
+        foreach ($options['data'] as $index => $item) {
             try {
-                if (!isset($item['mail'])) {
-                    throw new Exception('no mail-adress found in data');
+                if ($index >= $rangeFrom && $index <= $rangeTo) {
+                    if (!isset($item['mail'])) {
+                        throw new Exception('no mail-adress found in data');
+                    }
+
+                    $bodyTemplate = $options['body'];
+                    if (preg_match("/^file:/i", $bodyTemplate)) {
+                        $bodyTemplate = file_get_contents(preg_replace("/^file:/", '', $bodyTemplate));
+                    } else if (preg_match("/^column:/i", $bodyTemplate)) {
+                        $bodyTemplate = $item[preg_replace("/^file:/", '', $bodyTemplate)];
+                    }
+
+                    $subjectTemplate = $options['subject'];
+                    if (preg_match("/^file:/i", $subjectTemplate)) {
+                        $subjectTemplate = file_get_contents(preg_replace("/^file:/", '', $subjectTemplate));
+                    } else if (preg_match("/^column:/i", $subjectTemplate)) {
+                        $subjectTemplate = $item[preg_replace("/^file:/", '', $subjectTemplate)];
+                    }
+
+                    $loader = new ArrayLoader(['body' => $bodyTemplate, 'subject' => $subjectTemplate]);
+                    $twig = new Environment($loader);
+                    $twig = TwigFunctions::decorateTwig($twig);
+
+                    $outputSubject = $twig->render('subject', $item);
+                    $outputSubject = EventListenerFactory::getInstance()->fireFilterEvent('multimail_rendered_subject', $outputSubject, ['mail' => $item, 'renderer' => $twig, 'template' => $subjectTemplate]);
+                    $outputBody = $twig->render('body', $item);
+                    $outputBody = EventListenerFactory::getInstance()->fireFilterEvent('multimail_rendered_body', $outputBody, ['mail' => $item, 'renderer' => $twig, 'template' => $bodyTemplate]);
+
+                    $mailer = SMTPMailerFactory::instance()->createMailer();
+                    $mailer->send($options['from'], $options['fromName'], [$item['mail']], $outputSubject, $outputBody, $options['isHtml']);
+
+                    EventListenerFactory::getInstance()->fireFilterEvent('multimail_post_send', null, [
+                        'subject' => $outputSubject,
+                        'body' => $outputBody,
+                        'mail' => $item,
+                        'options' => $options,
+                        'to' => $item['mail'],
+                    ]);
+
+                    $output->writeln($item['mail'] . ': ok');
+                } else {
+                    $output->writeln($item['mail'] . ': not processed');
                 }
-
-                $bodyTemplate = $options['body'];
-                if (preg_match("/^file:/i", $bodyTemplate)) {
-                    $bodyTemplate = file_get_contents(preg_replace("/^file:/", '', $bodyTemplate));
-                } else if (preg_match("/^column:/i", $bodyTemplate)) {
-                    $bodyTemplate = $item[preg_replace("/^file:/", '', $bodyTemplate)];
-                }
-
-                $subjectTemplate = $options['subject'];
-                if (preg_match("/^file:/i", $subjectTemplate)) {
-                    $subjectTemplate = file_get_contents(preg_replace("/^file:/", '', $subjectTemplate));
-                } else if (preg_match("/^column:/i", $subjectTemplate)) {
-                    $subjectTemplate = $item[preg_replace("/^file:/", '', $subjectTemplate)];
-                }
-
-                $loader = new ArrayLoader(['body' => $bodyTemplate, 'subject' => $subjectTemplate]);
-                $twig = new Environment($loader);
-                $twig = TwigFunctions::decorateTwig($twig);
-
-                $outputSubject = $twig->render('subject', $item);
-                $outputSubject = EventListenerFactory::getInstance()->fireFilterEvent('multimail_rendered_subject', $outputSubject, ['mail' => $item, 'renderer' => $twig, 'template' => $subjectTemplate]);
-                $outputBody = $twig->render('body', $item);
-                $outputBody = EventListenerFactory::getInstance()->fireFilterEvent('multimail_rendered_body', $outputBody, ['mail' => $item, 'renderer' => $twig, 'template' => $bodyTemplate]);
-
-                $mailer = SMTPMailerFactory::instance()->createMailer();
-                $mailer->send($options['from'], $options['fromName'], [$item['mail']], $outputSubject, $outputBody, $options['isHtml']);
-
-                EventListenerFactory::getInstance()->fireFilterEvent('multimail_post_send', null, [
-                    'subject' => $outputSubject,
-                    'body' => $outputBody,
-                    'mail' => $item,
-                    'options' => $options,
-                    'to' => $item['mail'],
-                ]);
-
-                $output->writeln($item['mail'] . ': ok');
             } catch (Exception $e) {
                 $output->writeln($item['mail'] . ': failed (' . $e->getMessage() . ')');
             }

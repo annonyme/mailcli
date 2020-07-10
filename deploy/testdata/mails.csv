@@ -1,4 +1,4 @@
-mail;name;voucher
-a@example.com;Customer No1;11111
-b@example.com;Customer No2;11112
-c@example.com;Customer No3;11113
+mail;name;voucher;attachment;_attachment_type
+a@example.com;Customer No1;11111;modules/mailcli/deploy/testdata/dummy.txt;attachment
+b@example.com;Customer No2;11112;modules/mailcli/deploy/testdata/dummy.txt;attachment
+c@example.com;Customer No3;11113;modules/mailcli/deploy/testdata/dummy.txt;attachment

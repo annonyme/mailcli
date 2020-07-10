@@ -4,8 +4,11 @@ namespace mailcli;
 
 use core\events\EventListenerFactory;
 use core\mail\SMTPMailerFactory;
+use core\mail\v2\MailerFactory;
 use core\twig\TwigFunctions;
 use Exception;
+use Swift_Attachment;
+use Swift_Message;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -20,9 +23,9 @@ class SendCommand extends Command
         $this->setName('mail:multi:send');
         $this->setDescription('send multiple mails, with twig-template support');
 
-        $this->addOption('from', null, InputOption::VALUE_REQUIRED, 'from email-adress');
-        $this->addOption('fromname', null, InputOption::VALUE_OPTIONAL, 'from email-adress name');
-        $this->addOption('data', null, InputOption::VALUE_REQUIRED, 'email-adresses and data as CSV(;-separated), YAML-items or JSON-objects in array. "mail" has to contain the email-adress you want to send the message to (use a object like "mail: "{"a@example.de": "Firstname Lastname"} to add the fullname).');
+        $this->addOption('from', null, InputOption::VALUE_REQUIRED, 'from email-address');
+        $this->addOption('fromname', null, InputOption::VALUE_OPTIONAL, 'from email-address name');
+        $this->addOption('data', null, InputOption::VALUE_REQUIRED, 'email-addresses and data as CSV(;-separated), YAML-items or JSON-objects in array. "mail" has to contain the email-address you want to send the message to.');
         $this->addOption('subject', null, InputOption::VALUE_REQUIRED, 'subject as string, twig: or column:');
         $this->addOption('body', null, InputOption::VALUE_REQUIRED, 'subject as string, file: or column:');
         $this->addOption('ishtml', null, InputOption::VALUE_OPTIONAL, 'yes/no. default is no');
@@ -74,7 +77,6 @@ class SendCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $dataFilepath = $input->getOption('data');
-        $data = [];
         if (preg_match("/\.csv$/i", $dataFilepath)) {
             $data = $this->readCSV($dataFilepath);
         } else if (preg_match("/\.y(a)?ml$/i", $dataFilepath) && function_exists('yaml_parse_file')) {
@@ -83,17 +85,17 @@ class SendCommand extends Command
             $data = json_decode(file_get_contents($dataFilepath), true);
         }
 
-        if (count($data) < 1) {
+        if (!is_array($data) || count($data) < 1) {
             throw new Exception('no data or invalid data-format! (' . $input->getOption('data') . ')');
         }
         $from = $input->getOption('from');
         if (!filter_var($from, FILTER_VALIDATE_EMAIL)) {
-            throw new Exception('invalid from email-adress');
+            throw new Exception('invalid from email-address');
         }
 
         $fromName = $input->hasOption('fromname') ? $input->getOption('fromname') : null;
-        $rangeFrom = $input->hasOption('rangefrom') ? (int) $input->getOption('rangefrom') : 0;
-        $rangeTo = $input->hasOption('rangeto') ? (int) $input->getOption('rangeto') : PHP_INT_MAX;
+        $rangeFrom = $input->hasOption('rangefrom') && $input->getOption('rangefrom') > 0 ? (int) $input->getOption('rangefrom') : 0;
+        $rangeTo = $input->hasOption('rangeto') && $input->getOption('rangeto') > 0 ? (int) $input->getOption('rangeto') : count($data);
 
         $subject = $input->getOption('subject');
         if (!$subject || strlen($subject) === 0) {
@@ -122,7 +124,10 @@ class SendCommand extends Command
             try {
                 if ($index >= $rangeFrom && $index <= $rangeTo) {
                     if (!isset($item['mail'])) {
-                        throw new Exception('no mail-adress found in data');
+                        throw new Exception('no mail-address found in data');
+                    }
+                    if (!filter_var($item['mail'], FILTER_VALIDATE_EMAIL)) {
+                        throw new Exception('invalid to email-address: ' . $item['mail']);
                     }
 
                     $bodyTemplate = $options['body'];
@@ -148,8 +153,46 @@ class SendCommand extends Command
                     $outputBody = $twig->render('body', $item);
                     $outputBody = EventListenerFactory::getInstance()->fireFilterEvent('multimail_rendered_body', $outputBody, ['mail' => $item, 'renderer' => $twig, 'template' => $bodyTemplate]);
 
-                    $mailer = SMTPMailerFactory::instance()->createMailer();
-                    $mailer->send($options['from'], $options['fromName'], [$item['mail']], $outputSubject, $outputBody, $options['isHtml']);
+                    if (class_exists('core\mail\v2\MailerFactory')) {
+                        $attachments = [];
+                        foreach ($item as $key => $value) {
+                            if(preg_match("/^file:/", $value) && file_exists($value)) {
+                                $attachments[] = $value;
+                            }
+                            else if(isset($item['_' . $key . '_type']) && $item['_' . $key . '_type'] == 'attachment' && file_exists($value)) {
+                                $attachments[] = $value;
+                            }
+                            else if(isset($value['_type']) && isset($value['uri']) && $value['_type'] == 'attachment' && file_exists($value['uri'])) {
+                                $attachments[] = $value['uri'];
+                            }
+                        }
+
+                        $mailer = MailerFactory::getMailer();
+                        $mail = new Swift_Message($outputSubject);
+
+                        if ($options['fromName']) {
+                            $mail->setFrom([$from => $options['fromName']]);
+                        } else {
+                            $mail->setFrom($from);
+                        }
+
+                        $mail->setTo($item['mail']);
+                        if (isset($options['bcc']) && strlen(trim($options['bcc'])) > 0) {
+                            $mail->setBcc($options['bcc']);
+                        }
+                        $mail->setBody($outputBody);
+
+                        foreach ($attachments as $attachment) {
+                            $mail->attach(Swift_Attachment::fromPath(realpath($attachment)));
+                        }
+
+                        $mailer->send($mail);
+                    } else {
+                        //fallback to old mailer
+                        $mailer = SMTPMailerFactory::instance()->createMailer();
+                        $mailer->send($options['from'], $options['fromName'], [$item['mail']], $outputSubject,
+                            $outputBody, $options['isHtml']);
+                    }
 
                     EventListenerFactory::getInstance()->fireFilterEvent('multimail_post_send', null, [
                         'subject' => $outputSubject,
@@ -164,7 +207,7 @@ class SendCommand extends Command
                     $output->writeln($item['mail'] . ': not processed');
                 }
             } catch (Exception $e) {
-                $output->writeln($item['mail'] . ': failed (' . $e->getMessage() . ')');
+                $output->writeln(($item['mail'] ?? 'item ' . $index) . ': failed (' . $e->getMessage() . ')');
             }
         }
     }

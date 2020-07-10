@@ -2,16 +2,28 @@
     {
         "mail": "a@example.com",
         "name": "Customer No1",
-        "voucher": "11111"
+        "voucher": "11111",
+        "file": {
+            "_type": "attachment",
+            "uri": ";modules/mailcli/deploy/testdata/dummy.txt"
+        }
     },
     {
         "mail": "b@example.com",
         "name": "Customer No2",
-        "voucher": "11112"
+        "voucher": "11112",
+        "file": {
+            "_type": "attachment",
+            "uri": ";modules/mailcli/deploy/testdata/dummy.txt"
+        }
     },
     {
         "mail": "c@example.com",
         "name": "Customer No3",
-        "voucher": "11113"
+        "voucher": "11113",
+        "file": {
+            "_type": "attachment",
+            "uri": ";modules/mailcli/deploy/testdata/dummy.txt"
+        }
     }
 ]
